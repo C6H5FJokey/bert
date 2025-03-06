@@ -2,7 +2,8 @@ from transformers import (
     RobertaTokenizerFast,
     RobertaForSequenceClassification,
     Trainer,
-    TrainingArguments
+    TrainingArguments,
+    EarlyStoppingCallback
 )
 from datasets import (
     Dataset,
@@ -24,6 +25,7 @@ import argparse
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--model", type=str, help="The local path of the model.")
+parser.add_argument("--batch_size", type=int, help="The batch size.", default=16)
 
 args = parser.parse_args()
 
@@ -84,7 +86,7 @@ def compute_metrics(p):
 
 
 
-batch_size = 16
+batch_size = args.batch_size
 RUN_ID = "RoBERTa-ner"
 SEED = 0
 LR = 1e-6
@@ -101,7 +103,7 @@ train_args = TrainingArguments(
     lr_scheduler_type="linear",
     metric_for_best_model="accuracy",
     logging_strategy="epoch",
-    seed=SEED
+    seed=SEED,
 )
 
 def set_seed(seed: int = 42):
@@ -117,12 +119,16 @@ set_seed(SEED)
 
 model = RobertaForSequenceClassification.from_pretrained(args.model, num_labels=3, torch_dtype="auto")
 
+for param in model.roberta.parameters():
+    param.requires_grad = False
+
 trainer = Trainer(
     model=model,
     args=train_args,
     train_dataset=tokenizer_ds["train"],
     eval_dataset=tokenizer_ds["validation"],
-    compute_metrics=compute_metrics
+    compute_metrics=compute_metrics,
+    callbacks=[EarlyStoppingCallback(early_stopping_patience=5)]
 )
 
 # torch.autograd.set_detect_anomaly(True)
