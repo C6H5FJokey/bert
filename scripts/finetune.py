@@ -26,6 +26,7 @@ import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("--model", type=str, help="The local path of the model.")
 parser.add_argument("--batch_size", type=int, help="The batch size.", default=16)
+parser.add_argument("--freeze_layers", type=int, help="Number of layers to freeze.", default=12)
 
 args = parser.parse_args()
 
@@ -89,7 +90,7 @@ def compute_metrics(p):
 batch_size = args.batch_size
 RUN_ID = "RoBERTa-ner"
 SEED = 0
-LR = 1e-6
+LR = 1e-5
 
 train_args = TrainingArguments(
     f"{RUN_ID}_{SEED}",
@@ -119,8 +120,10 @@ set_seed(SEED)
 
 model = RobertaForSequenceClassification.from_pretrained(args.model, num_labels=3, torch_dtype="auto")
 
-for param in model.roberta.parameters():
-    param.requires_grad = False
+for i, layer in enumerate(model.roberta.encoder.layer):
+    if i < args.freeze_layers:
+        for param in layer.parameters():
+            param.requires_grad = False
 
 trainer = Trainer(
     model=model,
